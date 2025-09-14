@@ -1,6 +1,7 @@
 package org.demo.services.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.demo.models.News;
 import org.demo.models.dto.NewsDTO;
 import org.demo.repositories.NewsRepository;
@@ -13,6 +14,7 @@ import reactor.core.publisher.Mono;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NewsServiceImpl implements NewsService {
@@ -28,61 +30,126 @@ public class NewsServiceImpl implements NewsService {
 
     @Override
     public News createNews(NewsDTO newsDTO) {
-        News news = new News();
-        news.setTitle(newsDTO.getTitle());
-        news.setDescription(newsDTO.getDescription());
-        news.setContent(newsDTO.getContent());
-        news.setAuthor(newsDTO.getAuthor());
-        news.setSourceUrl(newsDTO.getSourceUrl());
-        news.setImageUrl(newsDTO.getImageUrl());
-        news.setPublishedAt(newsDTO.getPublishedAt() != null ? newsDTO.getPublishedAt() : LocalDateTime.now());
-        
-        return newsRepository.save(news);
+        log.debug("Creating news with title: {}", newsDTO.getTitle());
+        try {
+            News news = new News();
+            news.setTitle(newsDTO.getTitle());
+            news.setDescription(newsDTO.getDescription());
+            news.setContent(newsDTO.getContent());
+            news.setAuthor(newsDTO.getAuthor());
+            news.setSourceUrl(newsDTO.getSourceUrl());
+            news.setImageUrl(newsDTO.getImageUrl());
+            news.setPublishedAt(newsDTO.getPublishedAt() != null ? newsDTO.getPublishedAt() : LocalDateTime.now());
+            
+            News savedNews = newsRepository.save(news);
+            log.debug("Successfully created news with ID: {}", savedNews.getId());
+            return savedNews;
+        } catch (Exception e) {
+            log.error("Error creating news: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     @Override
     public void deleteNews(Long id) {
-        newsRepository.deleteById(id);
+        log.debug("Attempting to delete news with ID: {}", id);
+        try {
+            newsRepository.deleteById(id);
+            log.debug("Successfully deleted news with ID: {}", id);
+        } catch (Exception e) {
+            log.error("Error deleting news with ID {}: {}", id, e.getMessage(), e);
+            throw e;
+        }
     }
 
     @Override
     public List<News> searchNews(String keyword) {
-        return newsRepository.searchNews(keyword);
+        log.debug("Searching news with keyword: {}", keyword);
+        try {
+            List<News> results = newsRepository.searchNews(keyword);
+            log.debug("Found {} news items matching keyword: {}", results.size(), keyword);
+            return results;
+        } catch (Exception e) {
+            log.error("Error searching news with keyword {}: {}", keyword, e.getMessage(), e);
+            throw e;
+        }
     }
 
     @Override
     public List<News> getDailyNews() {
-        LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
-        LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
-        
-        return newsRepository.findByPublishedAtBetweenOrderByPublishedAtDesc(startOfDay, endOfDay);
+        log.debug("Fetching daily news");
+        try {
+            LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
+            LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+            
+            List<News> dailyNews = newsRepository.findByPublishedAtBetweenOrderByPublishedAtDesc(startOfDay, endOfDay);
+            log.debug("Found {} news items for today between {} and {}", dailyNews.size(), startOfDay, endOfDay);
+            return dailyNews;
+        } catch (Exception e) {
+            log.error("Error fetching daily news: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @Override
+    public void deleteAllNews() {
+        log.debug("Attempting to delete all news from database");
+        try {
+            newsRepository.deleteAll();
+            log.debug("Successfully deleted all news from database");
+        } catch (Exception e) {
+            log.error("Error deleting all news: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     @Override
     public List<News> fetchNewsFromExternalApi(String query) {
-        String url = baseUrl + "&apiKey=" + apiKey + "&q=" + query;
-        return webClientBuilder.build()
-                .get()
-                .uri(url)
-                .retrieve()
-                .bodyToMono(NewsApiResponse.class)
-                .map(response -> response.getResults().stream()
-                        .map(this::mapToNews)
-                        .toList())
-                .block();
+        log.debug("Fetching news from external API with query: {}", query);
+        try {
+            String url = baseUrl + "&apiKey=" + apiKey + "&q=" + query;
+            log.debug("Making request to external API: {}", url.replace(apiKey, "API_KEY_HIDDEN"));
+            
+            List<News> fetchedNews = webClientBuilder.build()
+                    .get()
+                    .uri(url)
+                    .retrieve()
+                    .bodyToMono(NewsApiResponse.class)
+                    .map(response -> {
+                        log.debug("Received {} results from external API", response.getResults().size());
+                        return response.getResults().stream()
+                                .map(this::mapToNewsDTO)
+                                .map(this::createNews)
+                                .toList();
+                    })
+                    .block();
+            
+            log.debug("Successfully fetched and saved {} news items", fetchedNews.size());
+            return fetchedNews;
+        } catch (Exception e) {
+            log.error("Error fetching/saving news from external API with query {}: {}", query, e.getMessage(), e);
+            throw e;
+        }
     }
 
-    private News mapToNews(NewsApiResponse.NewsResult result) {
-        News news = new News();
-        news.setTitle(result.getTitle());
-        news.setDescription(result.getDescription());
-        news.setContent(result.getContent());
-        news.setAuthor(result.getCreator() != null ? String.join(", ", result.getCreator()) : null);
-        news.setSourceUrl(result.getLink());
-        news.setImageUrl(result.getImageUrl());
-        news.setPublishedAt(LocalDateTime.parse(result.getPubDate().replace(" ", "T")));
-        return news;
+    private NewsDTO mapToNewsDTO(NewsApiResponse.NewsResult result) {
+        log.trace("Mapping external API result to NewsDTO: {}", result.getTitle());
+        try {
+            NewsDTO newsDTO = new NewsDTO();
+            newsDTO.setTitle(result.getTitle());
+            newsDTO.setDescription(result.getDescription());
+            newsDTO.setContent(result.getContent());
+            newsDTO.setAuthor(result.getCreator() != null ? String.join(", ", result.getCreator()) : null);
+            newsDTO.setSourceUrl(result.getLink());
+            newsDTO.setImageUrl(result.getImageUrl());
+            newsDTO.setPublishedAt(LocalDateTime.parse(result.getPubDate().replace(" ", "T")));
+            return newsDTO;
+        } catch (Exception e) {
+            log.error("Error mapping news item with title {} to DTO: {}", result.getTitle(), e.getMessage(), e);
+            throw e;
+        }
     }
+
 
     private static class NewsApiResponse {
         private List<NewsResult> results;

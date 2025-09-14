@@ -2,6 +2,7 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.2.3'
 	id 'io.spring.dependency-management' version '1.1.4'
+	id 'application'  // Add application plugin
 }
 
 group = 'org'
@@ -34,4 +35,30 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+application {
+    mainClass = 'org.demo.DemoApplication'
+}
+
+// Remove previous debug config and add new one
+tasks.named('run') {
+    debug = true
+    debugOptions {
+        enabled = true
+        server = true
+        suspend = false
+        port = 5006
+    }
+}
+
+// Add specific debug task
+task debugRun(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.demo.DemoApplication'
+    debug = true
+    jvmArgs = [
+        '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006',
+        '-Dspring.profiles.active=debug'
+    ]
 }
