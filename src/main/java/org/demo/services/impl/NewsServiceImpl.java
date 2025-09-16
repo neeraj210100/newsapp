@@ -21,7 +21,7 @@ public class NewsServiceImpl implements NewsService {
 
     private final NewsRepository newsRepository;
     private final WebClient.Builder webClientBuilder;
-
+//    private final TranslationService translationService;
     @Value("${news.api.key}")
     private String apiKey;
 
@@ -135,10 +135,14 @@ public class NewsServiceImpl implements NewsService {
     private NewsDTO mapToNewsDTO(NewsApiResponse.NewsResult result) {
         log.trace("Mapping external API result to NewsDTO: {}", result.getTitle());
         try {
+            String description= result.getDescription();
+            String content= result.getContent();
+//            description=translationService.translateText(description,"en");
+//            content=translationService.translateText(content,"en");
             NewsDTO newsDTO = new NewsDTO();
             newsDTO.setTitle(result.getTitle());
-            newsDTO.setDescription(result.getDescription());
-            newsDTO.setContent(result.getContent());
+            newsDTO.setDescription(description);
+            newsDTO.setContent(content);
             newsDTO.setAuthor(result.getCreator() != null ? String.join(", ", result.getCreator()) : null);
             newsDTO.setSourceUrl(result.getLink());
             newsDTO.setImageUrl(result.getImageUrl());

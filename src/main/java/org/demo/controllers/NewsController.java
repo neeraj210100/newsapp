@@ -19,18 +19,18 @@ public class NewsController {
 
     private final NewsService newsService;
 
-    @PostMapping("/createNews")
-    public ResponseEntity<News> createNews(@Valid @RequestBody NewsDTO newsDTO) {
-        log.debug("Received request to create news: {}", newsDTO.getTitle());
-        try {
-            News createdNews = newsService.createNews(newsDTO);
-            log.debug("Successfully created news with ID: {}", createdNews.getId());
-            return ResponseEntity.ok(createdNews);
-        } catch (Exception e) {
-            log.error("Error creating news: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
+//    @PostMapping("/createNews")
+//    public ResponseEntity<News> createNews(@Valid @RequestBody NewsDTO newsDTO) {
+//        log.debug("Received request to create news: {}", newsDTO.getTitle());
+//        try {
+//            News createdNews = newsService.createNews(newsDTO);
+//            log.debug("Successfully created news with ID: {}", createdNews.getId());
+//            return ResponseEntity.ok(createdNews);
+//        } catch (Exception e) {
+//            log.error("Error creating news: {}", e.getMessage(), e);
+//            throw e;
+//        }
+//    }
 
     @DeleteMapping("/deleteNews/{id}")
     public ResponseEntity<Void> deleteNews(@PathVariable Long id) {
@@ -96,4 +96,19 @@ public class NewsController {
             throw e;
         }
     }
+
+//    @PostMapping("/{id}/translate")
+//    public ResponseEntity<News> translateNews(
+//            @PathVariable Long id,
+//            @RequestParam String targetLanguage) {
+//        log.debug("Received request to translate news ID {} to language: {}", id, targetLanguage);
+//        try {
+//            News translatedNews = newsService.translateNews(id, targetLanguage);
+//            log.debug("Successfully translated news ID {} to {}", id, targetLanguage);
+//            return ResponseEntity.ok(translatedNews);
+//        } catch (Exception e) {
+//            log.error("Error translating news ID {} to {}: {}", id, targetLanguage, e.getMessage(), e);
+//            throw e;
+//        }
+//    }
 } 
