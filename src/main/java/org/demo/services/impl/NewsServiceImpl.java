@@ -21,7 +21,8 @@ public class NewsServiceImpl implements NewsService {
 
     private final NewsRepository newsRepository;
     private final WebClient.Builder webClientBuilder;
-//    private final TranslationService translationService;
+    private final TranslationService translationService;
+    
     @Value("${news.api.key}")
     private String apiKey;
 
@@ -32,6 +33,14 @@ public class NewsServiceImpl implements NewsService {
     public News createNews(NewsDTO newsDTO) {
         log.debug("Creating news with title: {}", newsDTO.getTitle());
         try {
+            // Check for existing news with same title and source URL
+            if (newsRepository.existsByTitleAndSourceUrl(newsDTO.getTitle(), newsDTO.getSourceUrl())) {
+                log.debug("News article already exists with title: {} and source: {}", 
+                    newsDTO.getTitle(), newsDTO.getSourceUrl());
+                return newsRepository.findByTitleAndSourceUrl(newsDTO.getTitle(), newsDTO.getSourceUrl())
+                    .orElseThrow(() -> new RuntimeException("News article not found after existence check"));
+            }
+
             News news = new News();
             news.setTitle(newsDTO.getTitle());
             news.setDescription(newsDTO.getDescription());
@@ -76,17 +85,22 @@ public class NewsServiceImpl implements NewsService {
     }
 
     @Override
-    public List<News> getDailyNews() {
-        log.debug("Fetching daily news");
+    public List<News> getDailyNews(String targetLanguage) {
+        log.debug("Getting daily news with translation to language: {}", targetLanguage);
         try {
             LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
             LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
             
             List<News> dailyNews = newsRepository.findByPublishedAtBetweenOrderByPublishedAtDesc(startOfDay, endOfDay);
-            log.debug("Found {} news items for today between {} and {}", dailyNews.size(), startOfDay, endOfDay);
+            
+            // Translate if target language is provided
+            if (targetLanguage != null && !targetLanguage.isEmpty()) {
+                return translateNewsList(dailyNews, targetLanguage);
+            }
+            
             return dailyNews;
         } catch (Exception e) {
-            log.error("Error fetching daily news: {}", e.getMessage(), e);
+            log.error("Error getting daily news: {}", e.getMessage(), e);
             throw e;
         }
     }
@@ -104,7 +118,7 @@ public class NewsServiceImpl implements NewsService {
     }
 
     @Override
-    public List<News> fetchNewsFromExternalApi(String query) {
+    public List<News> fetchNewsFromExternalApi(String query, String targetLanguage) {
         log.debug("Fetching news from external API with query: {}", query);
         try {
             String url = baseUrl + "&apiKey=" + apiKey + "&q=" + query;
@@ -119,12 +133,24 @@ public class NewsServiceImpl implements NewsService {
                         log.debug("Received {} results from external API", response.getResults().size());
                         return response.getResults().stream()
                                 .map(this::mapToNewsDTO)
-                                .map(this::createNews)
+                                .map(newsDTO -> {
+                                    try {
+                                        return createNews(newsDTO); // This will handle duplicate checking
+                                    } catch (Exception e) {
+                                        log.error("Error saving news item: {}", e.getMessage());
+                                        return null;
+                                    }
+                                })
+                                .filter(news -> news != null)
                                 .toList();
                     })
                     .block();
             
-            log.debug("Successfully fetched and saved {} news items", fetchedNews.size());
+            // Translate the fetched news if target language is provided
+            if (targetLanguage != null && !targetLanguage.isEmpty() && !fetchedNews.isEmpty()) {
+                return translateNewsList(fetchedNews, targetLanguage);
+            }
+            
             return fetchedNews;
         } catch (Exception e) {
             log.error("Error fetching/saving news from external API with query {}: {}", query, e.getMessage(), e);
@@ -132,15 +158,37 @@ public class NewsServiceImpl implements NewsService {
         }
     }
 
+    private List<News> translateNewsList(List<News> newsList, String targetLanguage) {
+        return newsList.stream()
+                .map(news -> {
+                    try {
+                        News translatedNews = new News();
+                        translatedNews.setId(news.getId());
+                        translatedNews.setTitle(translationService.translateText(news.getTitle(), targetLanguage));
+                        translatedNews.setDescription(translationService.translateText(news.getDescription(), targetLanguage));
+                        translatedNews.setContent(translationService.translateText(news.getContent(), targetLanguage));
+                        translatedNews.setAuthor(news.getAuthor());
+                        translatedNews.setSourceUrl(news.getSourceUrl());
+                        translatedNews.setImageUrl(news.getImageUrl());
+                        translatedNews.setPublishedAt(news.getPublishedAt());
+                        return translatedNews;
+                    } catch (Exception e) {
+                        log.error("Error translating news item {}: {}", news.getId(), e.getMessage());
+                        return news; // Return original if translation fails
+                    }
+                })
+                .toList();
+    }
+
     private NewsDTO mapToNewsDTO(NewsApiResponse.NewsResult result) {
         log.trace("Mapping external API result to NewsDTO: {}", result.getTitle());
         try {
-            String description= result.getDescription();
-            String content= result.getContent();
-//            description=translationService.translateText(description,"en");
-//            content=translationService.translateText(content,"en");
+            String title = result.getTitle() != null ? result.getTitle().trim() : "";
+            String description = result.getDescription() != null ? result.getDescription().trim() : "";
+            String content = result.getContent() != null ? result.getContent().trim() : "";
+            
             NewsDTO newsDTO = new NewsDTO();
-            newsDTO.setTitle(result.getTitle());
+            newsDTO.setTitle(title);
             newsDTO.setDescription(description);
             newsDTO.setContent(content);
             newsDTO.setAuthor(result.getCreator() != null ? String.join(", ", result.getCreator()) : null);

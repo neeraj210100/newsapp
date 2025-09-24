@@ -10,6 +10,6 @@ public interface NewsService {
     void deleteNews(Long id);
     void deleteAllNews();
     List<News> searchNews(String keyword);
-    List<News> getDailyNews();
-    List<News> fetchNewsFromExternalApi(String query);
+    List<News> getDailyNews(String targetLanguage);
+    List<News> fetchNewsFromExternalApi(String query, String targetLanguage);
 } 

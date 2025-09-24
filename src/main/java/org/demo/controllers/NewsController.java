@@ -19,19 +19,6 @@ public class NewsController {
 
     private final NewsService newsService;
 
-//    @PostMapping("/createNews")
-//    public ResponseEntity<News> createNews(@Valid @RequestBody NewsDTO newsDTO) {
-//        log.debug("Received request to create news: {}", newsDTO.getTitle());
-//        try {
-//            News createdNews = newsService.createNews(newsDTO);
-//            log.debug("Successfully created news with ID: {}", createdNews.getId());
-//            return ResponseEntity.ok(createdNews);
-//        } catch (Exception e) {
-//            log.error("Error creating news: {}", e.getMessage(), e);
-//            throw e;
-//        }
-//    }
-
     @DeleteMapping("/deleteNews/{id}")
     public ResponseEntity<Void> deleteNews(@PathVariable Long id) {
         log.debug("Received request to delete news with ID: {}", id);
@@ -59,10 +46,11 @@ public class NewsController {
     }
 
     @GetMapping("/dailyBulletin")
-    public ResponseEntity<List<News>> getDailyNews() {
-        log.debug("Received request to get daily news bulletin");
+    public ResponseEntity<List<News>> getDailyNews(
+            @RequestParam(defaultValue = "en") String targetLanguage) {
+        log.debug("Received request to get daily news bulletin in language: {}", targetLanguage);
         try {
-            List<News> dailyNews = newsService.getDailyNews();
+            List<News> dailyNews = newsService.getDailyNews(targetLanguage);
             log.debug("Retrieved {} news items for daily bulletin", dailyNews.size());
             return ResponseEntity.ok(dailyNews);
         } catch (Exception e) {
@@ -72,10 +60,13 @@ public class NewsController {
     }
 
     @GetMapping("/external")
-    public ResponseEntity<List<News>> fetchExternalNews(@RequestParam String query) {
-        log.debug("Received request to fetch and save external news with query: {}", query);
+    public ResponseEntity<List<News>> fetchExternalNews(
+            @RequestParam String query,
+            @RequestParam(defaultValue = "en") String targetLanguage) {
+        log.debug("Received request to fetch and save external news with query: {} in language: {}", 
+                 query, targetLanguage);
         try {
-            List<News> externalNews = newsService.fetchNewsFromExternalApi(query);
+            List<News> externalNews = newsService.fetchNewsFromExternalApi(query, targetLanguage);
             log.debug("Retrieved and saved {} news items from external API", externalNews.size());
             return ResponseEntity.ok(externalNews);
         } catch (Exception e) {
@@ -97,18 +88,4 @@ public class NewsController {
         }
     }
 
-//    @PostMapping("/{id}/translate")
-//    public ResponseEntity<News> translateNews(
-//            @PathVariable Long id,
-//            @RequestParam String targetLanguage) {
-//        log.debug("Received request to translate news ID {} to language: {}", id, targetLanguage);
-//        try {
-//            News translatedNews = newsService.translateNews(id, targetLanguage);
-//            log.debug("Successfully translated news ID {} to {}", id, targetLanguage);
-//            return ResponseEntity.ok(translatedNews);
-//        } catch (Exception e) {
-//            log.error("Error translating news ID {} to {}: {}", id, targetLanguage, e.getMessage(), e);
-//            throw e;
-//        }
-//    }
 } 

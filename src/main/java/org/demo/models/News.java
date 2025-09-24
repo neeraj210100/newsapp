@@ -1,25 +1,26 @@
 package org.demo.models;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "news")
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
+@Entity
+@Table(name = "news", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"title", "source_url"})
+})
 public class News {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 500)
     private String title;
 
-    @Column(length = 1000)
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @Column(columnDefinition = "TEXT")
@@ -27,14 +28,16 @@ public class News {
 
     private String author;
 
+    @Column(name = "source_url", length = 500)
     private String sourceUrl;
 
+    @Column(name = "image_url", length = 500)
     private String imageUrl;
 
-    @Column(nullable = false)
+    @Column(name = "published_at")
     private LocalDateTime publishedAt;
 
-    @Column(nullable = false)
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @PrePersist

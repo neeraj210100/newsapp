@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface NewsRepository extends JpaRepository<News, Long> {
@@ -27,4 +28,7 @@ public interface NewsRepository extends JpaRepository<News, Long> {
 
     List<News> findByTitleContainingIgnoreCaseOrContentContainingIgnoreCase(String titleKeyword, String contentKeyword);
     int deleteByCreatedAtBefore(LocalDateTime date);
+    List<News> findTop10ByOrderByPublishedAtDesc();
+    Optional<News> findByTitleAndSourceUrl(String title, String sourceUrl);
+    boolean existsByTitleAndSourceUrl(String title, String sourceUrl);
 } 
