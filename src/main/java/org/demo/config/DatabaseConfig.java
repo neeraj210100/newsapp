@@ -34,10 +34,9 @@ public class DatabaseConfig {
         config.setConnectionTimeout(20000); // 20 seconds
         config.setMaxLifetime(1200000); // 20 minutes
         
-        // SSL settings
-        config.addDataSourceProperty("useSSL", "true");
-        config.addDataSourceProperty("requireSSL", "true");
-        config.addDataSourceProperty("verifyServerCertificate", "true");
+        // Disable SSL for local development
+        config.addDataSourceProperty("useSSL", "false");
+        config.addDataSourceProperty("allowPublicKeyRetrieval", "true");
         
         // Performance settings
         config.addDataSourceProperty("cachePrepStmts", "true");
