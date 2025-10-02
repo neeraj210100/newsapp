@@ -9,7 +9,6 @@ import org.demo.services.NewsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,10 +33,10 @@ public class NewsServiceImpl implements NewsService {
         log.debug("Creating news with title: {}", newsDTO.getTitle());
         try {
             // Check for existing news with same title and source URL
-            if (newsRepository.existsByTitleAndSourceUrl(newsDTO.getTitle(), newsDTO.getSourceUrl())) {
-                log.debug("News article already exists with title: {} and source: {}", 
-                    newsDTO.getTitle(), newsDTO.getSourceUrl());
-                return newsRepository.findByTitleAndSourceUrl(newsDTO.getTitle(), newsDTO.getSourceUrl())
+            if (newsRepository.existsByTitleAndDescription(newsDTO.getTitle(), newsDTO.getDescription())) {
+                log.debug("News article already exists with title: {} and desc: {}",
+                    newsDTO.getTitle(), newsDTO.getDescription());
+                return newsRepository.findByTitleAndDescription(newsDTO.getTitle(), newsDTO.getDescription())
                     .orElseThrow(() -> new RuntimeException("News article not found after existence check"));
             }
 

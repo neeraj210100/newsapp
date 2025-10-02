@@ -30,10 +30,13 @@ dependencies {
 	// For working with JSON
 	implementation 'com.fasterxml.jackson.core:jackson-databind'
 	
-	// Google Cloud Translation dependencies
+	// Google Cloud dependencies
 	implementation platform('com.google.cloud:libraries-bom:26.34.0')
 	implementation 'com.google.cloud:google-cloud-translate'
 	implementation 'com.google.auth:google-auth-library-oauth2-http'
+	implementation 'com.google.cloud.sql:mysql-socket-factory-connector-j-8:1.16.0'
+    implementation("org.springframework.cloud:spring-cloud-gcp-starter-sql-mysql:1.2.8.RELEASE")
+    implementation 'com.google.cloud:google-cloud-storage'
 	
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
