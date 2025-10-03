@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.demo.models.News;
 import org.demo.models.dto.NewsDTO;
 import org.demo.repositories.NewsRepository;
+import org.demo.services.CategoryClassificationService;
 import org.demo.services.NewsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ public class NewsServiceImpl implements NewsService {
     private final NewsRepository newsRepository;
     private final WebClient.Builder webClientBuilder;
     private final TranslationService translationService;
+    private final CategoryClassificationService categoryClassificationService;
     
     @Value("${news.api.key}")
     private String apiKey;
@@ -49,8 +51,18 @@ public class NewsServiceImpl implements NewsService {
             news.setImageUrl(newsDTO.getImageUrl());
             news.setPublishedAt(newsDTO.getPublishedAt() != null ? newsDTO.getPublishedAt() : LocalDateTime.now());
             
+            // Automatically classify category if not provided
+            if (newsDTO.getCategory() == null || newsDTO.getCategory().trim().isEmpty()) {
+                String category = categoryClassificationService.classifyNewsCategory(
+                    newsDTO.getTitle(), newsDTO.getDescription(), newsDTO.getContent());
+                news.setCategory(category);
+                log.debug("Auto-classified news category as: {}", category);
+            } else {
+                news.setCategory(newsDTO.getCategory().toUpperCase());
+            }
+            
             News savedNews = newsRepository.save(news);
-            log.debug("Successfully created news with ID: {}", savedNews.getId());
+            log.debug("Successfully created news with ID: {} and category: {}", savedNews.getId(), savedNews.getCategory());
             return savedNews;
         } catch (Exception e) {
             log.error("Error creating news: {}", e.getMessage(), e);
@@ -157,6 +169,48 @@ public class NewsServiceImpl implements NewsService {
         }
     }
 
+    @Override
+    public List<News> getLatestNewsByCategory(String category, String targetLanguage) {
+        return getLatestNewsByCategory(category, 20, targetLanguage); // Default limit of 20
+    }
+
+    @Override
+    public List<News> getLatestNewsByCategory(String category, int limit, String targetLanguage) {
+        log.debug("Getting latest {} news items for category: {} in language: {}", limit, category, targetLanguage);
+        try {
+            List<News> categoryNews = newsRepository.findByCategoryOrderByPublishedAtDesc(category.toUpperCase())
+                    .stream()
+                    .limit(limit)
+                    .toList();
+            
+            log.debug("Found {} news items for category: {}", categoryNews.size(), category);
+            
+            // Translate if target language is provided
+            if (targetLanguage != null && !targetLanguage.isEmpty() && !targetLanguage.equalsIgnoreCase("en")) {
+                return translateNewsList(categoryNews, targetLanguage);
+            }
+            
+            return categoryNews;
+        } catch (Exception e) {
+            log.error("Error getting latest news by category {}: {}", category, e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @Override
+    public List<String> getAllCategories() {
+        log.debug("Getting all distinct categories");
+        try {
+            List<String> categories = newsRepository.findAllDistinctCategories();
+            log.debug("Found {} distinct categories: {}", categories.size(), categories);
+            return categories;
+        } catch (Exception e) {
+            log.error("Error getting all categories: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+
     private List<News> translateNewsList(List<News> newsList, String targetLanguage) {
         return newsList.stream()
                 .map(news -> {
@@ -169,6 +223,7 @@ public class NewsServiceImpl implements NewsService {
                         translatedNews.setAuthor(news.getAuthor());
                         translatedNews.setSourceUrl(news.getSourceUrl());
                         translatedNews.setImageUrl(news.getImageUrl());
+                        translatedNews.setCategory(news.getCategory());
                         translatedNews.setPublishedAt(news.getPublishedAt());
                         return translatedNews;
                     } catch (Exception e) {

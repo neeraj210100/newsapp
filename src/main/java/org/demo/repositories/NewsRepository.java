@@ -26,6 +26,18 @@ public interface NewsRepository extends JpaRepository<News, Long> {
            "LOWER(n.content) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     List<News> searchNews(@Param("keyword") String keyword);
 
+    // Category-based queries
+    List<News> findByCategoryOrderByPublishedAtDesc(String category);
+    
+    List<News> findByCategoryAndPublishedAtBetweenOrderByPublishedAtDesc(
+        String category, 
+        LocalDateTime start, 
+        LocalDateTime end
+    );
+    
+    @Query("SELECT DISTINCT n.category FROM News n WHERE n.category IS NOT NULL ORDER BY n.category")
+    List<String> findAllDistinctCategories();
+
     int deleteByCreatedAtBefore(LocalDateTime date);
     Optional<News> findByTitleAndDescription(String title, String sourceUrl);
     boolean existsByTitleAndDescription(String title, String sourceUrl);

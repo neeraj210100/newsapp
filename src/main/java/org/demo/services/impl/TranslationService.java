@@ -21,7 +21,7 @@ public class TranslationService {
 
     private Translate getTranslateService() throws IOException {
         try {
-            InputStream credentialsStream = new ClassPathResource("google-credentials.json").getInputStream();
+            InputStream credentialsStream = new ClassPathResource("google-translate-credentials.json").getInputStream();
             GoogleCredentials credentials = GoogleCredentials.fromStream(credentialsStream);
             
             return TranslateOptions.newBuilder()

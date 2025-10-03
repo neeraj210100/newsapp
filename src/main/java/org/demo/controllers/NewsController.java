@@ -88,4 +88,36 @@ public class NewsController {
         }
     }
 
+    // Category-related endpoints
+    @GetMapping("/dailyBulletin/{category}")
+    public ResponseEntity<List<News>> getLatestNewsByCategory(
+            @PathVariable String category,
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(defaultValue = "en") String targetLanguage) {
+        log.debug("Received request to get latest {} news items for category: {} in language: {}", 
+                 limit, category, targetLanguage);
+        try {
+            List<News> categoryNews = newsService.getLatestNewsByCategory(category, limit, targetLanguage);
+            log.debug("Retrieved {} news items for category: {}", categoryNews.size(), category);
+            return ResponseEntity.ok(categoryNews);
+        } catch (Exception e) {
+            log.error("Error getting latest news by category {}: {}", category, e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @GetMapping("/viewCategories")
+    public ResponseEntity<List<String>> getAllCategories() {
+        log.debug("Received request to get all categories");
+        try {
+            List<String> categories = newsService.getAllCategories();
+            log.debug("Retrieved {} categories", categories.size());
+            return ResponseEntity.ok(categories);
+        } catch (Exception e) {
+            log.error("Error getting all categories: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+
 } 

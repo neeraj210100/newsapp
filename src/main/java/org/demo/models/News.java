@@ -40,6 +40,9 @@ public class News {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "category", length = 100)
+    private String category;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

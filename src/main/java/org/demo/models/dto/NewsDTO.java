@@ -12,4 +12,5 @@ public class NewsDTO {
     private String sourceUrl;
     private String imageUrl;
     private LocalDateTime publishedAt;
+    private String category;
 } 
