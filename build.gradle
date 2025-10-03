@@ -34,9 +34,13 @@ dependencies {
 	implementation platform('com.google.cloud:libraries-bom:26.34.0')
 	implementation 'com.google.cloud:google-cloud-translate'
 	implementation 'com.google.auth:google-auth-library-oauth2-http'
+
 	implementation 'com.google.cloud.sql:mysql-socket-factory-connector-j-8:1.16.0'
     implementation("org.springframework.cloud:spring-cloud-gcp-starter-sql-mysql:1.2.8.RELEASE")
     implementation 'com.google.cloud:google-cloud-storage'
+	
+	// Swagger/OpenAPI dependencies
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
 	
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
