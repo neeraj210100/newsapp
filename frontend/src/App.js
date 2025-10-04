@@ -6,6 +6,7 @@ import Navbar from './components/Navbar';
 import NewsList from './components/NewsList';
 import SearchNews from './components/SearchNews';
 import ExternalNews from './components/ExternalNews';
+import Categories from './components/Categories';
 import { Container } from '@mui/material';
 
 const theme = createTheme({
@@ -44,6 +45,7 @@ function App() {
             <Route path="/" element={<NewsList />} />
             <Route path="/search" element={<SearchNews />} />
             <Route path="/external" element={<ExternalNews />} />
+            <Route path="/categories" element={<Categories />} />
           </Routes>
         </Container>
       </Router>

@@ -33,6 +33,13 @@ function Navbar() {
           >
             External News
           </Button>
+          <Button
+            color="inherit"
+            component={RouterLink}
+            to="/categories"
+          >
+            Categories
+          </Button>
         </Box>
       </Toolbar>
     </AppBar>

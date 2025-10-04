@@ -74,3 +74,59 @@ task debugRun(type: JavaExec) {
         '-Dspring.profiles.active=debug'
     ]
 }
+
+// Frontend build tasks
+def frontendDir = "${projectDir}/frontend"
+def frontendBuildDir = "${frontendDir}/build"
+def staticResourcesDir = "${projectDir}/src/main/resources/static"
+
+// Task to install npm dependencies
+task npmInstall(type: Exec) {
+    description = 'Install npm dependencies for React frontend'
+    workingDir frontendDir
+    
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        commandLine 'cmd', '/c', 'npm', 'install'
+    } else {
+        commandLine 'npm', 'install'
+    }
+}
+
+// Task to build React frontend
+task npmBuild(type: Exec) {
+    description = 'Build React frontend for production'
+    dependsOn npmInstall
+    workingDir frontendDir
+    
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        commandLine 'cmd', '/c', 'npm', 'run', 'build'
+    } else {
+        commandLine 'npm', 'run', 'build'
+    }
+}
+
+// Task to copy frontend build to static resources
+task copyFrontend(type: Copy) {
+    description = 'Copy React build to Spring Boot static resources'
+    dependsOn npmBuild
+    from frontendBuildDir
+    into "${staticResourcesDir}/app"
+}
+
+// Task to clean frontend build
+task cleanFrontend(type: Delete) {
+    description = 'Clean frontend build artifacts'
+    delete frontendBuildDir
+    delete "${staticResourcesDir}/app"
+}
+
+// Optional: Add frontend build to bootJar only when buildFrontend property is set
+// Usage: ./gradlew bootJar -PbuildFrontend
+if (project.hasProperty('buildFrontend')) {
+    bootJar {
+        dependsOn copyFrontend
+    }
+}
+
+// Add clean task dependency
+clean.dependsOn cleanFrontend

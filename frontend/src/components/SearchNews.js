@@ -11,51 +11,54 @@ import {
   Box,
   Alert,
   CircularProgress,
-  Snackbar,
+  Chip,
+  IconButton,
 } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
+import { Search as SearchIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import moment from 'moment';
-import axios from 'axios';
+import { newsApi } from '../services/api';
 
-function ExternalNews() {
-  const [query, setQuery] = useState('');
+function SearchNews() {
+  const [keyword, setKeyword] = useState('');
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState('');
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    if (!query.trim()) return;
+    if (!keyword.trim()) return;
 
     setLoading(true);
     setError(null);
-    setSuccessMessage('');
 
     try {
-      const response = await axios.get(`/api/news/external?query=${encodeURIComponent(query)}`);
+      const response = await newsApi.searchNews(keyword);
       setNews(response.data);
       if (response.data.length === 0) {
         setError('No news found for your search term.');
-      } else {
-        setSuccessMessage(`Successfully fetched and saved ${response.data.length} news articles!`);
       }
     } catch (err) {
-      setError('Failed to fetch external news. Please try again.');
-      console.error('Error fetching external news:', err);
+      setError(err.message || 'Failed to search news. Please try again.');
+      console.error('Error searching news:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCloseSnackbar = () => {
-    setSuccessMessage('');
+  const handleDeleteNews = async (id) => {
+    try {
+      await newsApi.deleteNews(id);
+      setNews(news.filter(item => item.id !== id));
+    } catch (err) {
+      setError(err.message || 'Failed to delete news item.');
+      console.error('Error deleting news:', err);
+    }
   };
 
   return (
     <>
       <Typography variant="h4" component="h1" gutterBottom>
-        External News Search
+        Search News
       </Typography>
       
       <Box component="form" onSubmit={handleSearch} sx={{ mb: 4 }}>
@@ -63,11 +66,11 @@ function ExternalNews() {
           <Grid item xs={12} sm={9}>
             <TextField
               fullWidth
-              label="Search external news"
+              label="Search news"
               variant="outlined"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Enter topic to fetch news..."
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="Enter keywords to search news..."
             />
           </Grid>
           <Grid item xs={12} sm={3}>
@@ -75,18 +78,18 @@ function ExternalNews() {
               fullWidth
               variant="contained"
               type="submit"
-              disabled={loading || !query.trim()}
+              disabled={loading || !keyword.trim()}
               startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
               sx={{ height: '56px' }}
             >
-              Fetch & Save
+              Search
             </Button>
           </Grid>
         </Grid>
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="info" sx={{ mb: 2 }}>
           {error}
         </Alert>
       )}
@@ -105,12 +108,31 @@ function ExternalNews() {
                 />
               )}
               <CardContent sx={{ flexGrow: 1 }}>
-                <Typography gutterBottom variant="h5" component="h2">
-                  {item.title}
-                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                  <Typography gutterBottom variant="h5" component="h2" sx={{ flexGrow: 1 }}>
+                    {item.title}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={() => handleDeleteNews(item.id)}
+                    title="Delete this news"
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
                 <Typography variant="body2" color="text.secondary" paragraph>
                   {item.description}
                 </Typography>
+                {item.category && (
+                  <Chip
+                    label={item.category}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                    sx={{ mb: 1 }}
+                  />
+                )}
                 <Typography variant="caption" color="text.secondary" display="block">
                   By {item.author || 'Unknown'} • {moment(item.publishedAt).format('MMMM D, YYYY')}
                 </Typography>
@@ -124,15 +146,8 @@ function ExternalNews() {
           </Grid>
         ))}
       </Grid>
-
-      <Snackbar
-        open={!!successMessage}
-        autoHideDuration={6000}
-        onClose={handleCloseSnackbar}
-        message={successMessage}
-      />
     </>
   );
 }
 
-export default ExternalNews; 
+export default SearchNews; 
