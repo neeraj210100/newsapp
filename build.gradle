@@ -42,6 +42,9 @@ dependencies {
 	// Swagger/OpenAPI dependencies
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
 	
+	// Jsoup for web scraping
+    implementation 'org.jsoup:jsoup:1.18.3' // Use the latest stable version
+	
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 
@@ -53,27 +56,24 @@ application {
     mainClass = 'org.demo.DemoApplication'
 }
 
-// Remove previous debug config and add new one
-tasks.named('run') {
-    debug = true
-    debugOptions {
-        enabled = true
-        server = true
-        suspend = false
-        port = 5006
-    }
-}
-
-// Add specific debug task
-task debugRun(type: JavaExec) {
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'org.demo.DemoApplication'
-    debug = true
+// Debug configuration
+bootRun {
     jvmArgs = [
-        '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006',
-        '-Dspring.profiles.active=debug'
+        '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005'
     ]
 }
+
+// Alternative debug task
+task debug(type: JavaExec) {
+    group = 'application'
+    description = 'Run the application in debug mode'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.demo.DemoApplication'
+    jvmArgs = [
+        '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005'
+    ]
+}
+
 
 // Frontend build tasks
 def frontendDir = "${projectDir}/frontend"

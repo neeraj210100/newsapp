@@ -12,7 +12,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -23,6 +25,7 @@ public class NewsServiceImpl implements NewsService {
     private final WebClient.Builder webClientBuilder;
     private final TranslationService translationService;
     private final CategoryClassificationService categoryClassificationService;
+    private final WebScraperService webScraperService;
     
     @Value("${news.api.key}")
     private String apiKey;
@@ -30,57 +33,6 @@ public class NewsServiceImpl implements NewsService {
     @Value("${news.api.base-url}")
     private String baseUrl;
 
-    @Override
-    public News createNews(NewsDTO newsDTO) {
-        log.debug("Creating news with title: {}", newsDTO.getTitle());
-        try {
-            // Check for existing news with same title and source URL
-            if (newsRepository.existsByTitleAndDescription(newsDTO.getTitle(), newsDTO.getDescription())) {
-                log.debug("News article already exists with title: {} and desc: {}",
-                    newsDTO.getTitle(), newsDTO.getDescription());
-                return newsRepository.findByTitleAndDescription(newsDTO.getTitle(), newsDTO.getDescription())
-                    .orElseThrow(() -> new RuntimeException("News article not found after existence check"));
-            }
-
-            News news = new News();
-            news.setTitle(newsDTO.getTitle());
-            news.setDescription(newsDTO.getDescription());
-            news.setContent(newsDTO.getContent());
-            news.setAuthor(newsDTO.getAuthor());
-            news.setSourceUrl(newsDTO.getSourceUrl());
-            news.setImageUrl(newsDTO.getImageUrl());
-            news.setPublishedAt(newsDTO.getPublishedAt() != null ? newsDTO.getPublishedAt() : LocalDateTime.now());
-            
-            // Automatically classify category if not provided
-            if (newsDTO.getCategory() == null || newsDTO.getCategory().trim().isEmpty()) {
-                String category = categoryClassificationService.classifyNewsCategory(
-                    newsDTO.getTitle(), newsDTO.getDescription(), newsDTO.getContent());
-                news.setCategory(category);
-                log.debug("Auto-classified news category as: {}", category);
-            } else {
-                news.setCategory(newsDTO.getCategory().toUpperCase());
-            }
-            
-            News savedNews = newsRepository.save(news);
-            log.debug("Successfully created news with ID: {} and category: {}", savedNews.getId(), savedNews.getCategory());
-            return savedNews;
-        } catch (Exception e) {
-            log.error("Error creating news: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
-
-    @Override
-    public void deleteNews(Long id) {
-        log.debug("Attempting to delete news with ID: {}", id);
-        try {
-            newsRepository.deleteById(id);
-            log.debug("Successfully deleted news with ID: {}", id);
-        } catch (Exception e) {
-            log.error("Error deleting news with ID {}: {}", id, e.getMessage(), e);
-            throw e;
-        }
-    }
 
     @Override
     public List<News> searchNews(String keyword) {
@@ -100,15 +52,15 @@ public class NewsServiceImpl implements NewsService {
         log.debug("Getting daily news with translation to language: {}", targetLanguage);
         try {
             LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
-            LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
-            
-            List<News> dailyNews = newsRepository.findByPublishedAtBetweenOrderByPublishedAtDesc(startOfDay, endOfDay);
-            
+            LocalDateTime endOfDay = LocalDateTime.now();
+            log.debug("start: {} end : {}", startOfDay,endOfDay);
+            List<News> dailyNews = newsRepository.findLatestNewsOrderByPublishedAtDesc(startOfDay, endOfDay);
+
             // Translate if target language is provided
             if (targetLanguage != null && !targetLanguage.isEmpty()) {
                 return translateNewsList(dailyNews, targetLanguage);
             }
-            
+
             return dailyNews;
         } catch (Exception e) {
             log.error("Error getting daily news: {}", e.getMessage(), e);
@@ -116,17 +68,6 @@ public class NewsServiceImpl implements NewsService {
         }
     }
 
-    @Override
-    public void deleteAllNews() {
-        log.debug("Attempting to delete all news from database");
-        try {
-            newsRepository.deleteAll();
-            log.debug("Successfully deleted all news from database");
-        } catch (Exception e) {
-            log.error("Error deleting all news: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
 
     @Override
     public List<News> fetchNewsFromExternalApi(String query, String targetLanguage) {
@@ -142,21 +83,15 @@ public class NewsServiceImpl implements NewsService {
                     .bodyToMono(NewsApiResponse.class)
                     .map(response -> {
                         log.debug("Received {} results from external API", response.getResults().size());
-                        return response.getResults().stream()
+                        List<NewsDTO> newsDTOs = response.getResults().stream()
                                 .map(this::mapToNewsDTO)
-                                .map(newsDTO -> {
-                                    try {
-                                        return createNews(newsDTO); // This will handle duplicate checking
-                                    } catch (Exception e) {
-                                        log.error("Error saving news item: {}", e.getMessage());
-                                        return null;
-                                    }
-                                })
-                                .filter(news -> news != null)
                                 .toList();
+                        
+                        // Fetch content and images sequentially from source URLs
+                        return enrichNewsSequentially(newsDTOs);
                     })
                     .block();
-            
+            if(Objects.isNull(fetchedNews)) return new ArrayList<>();
             // Translate the fetched news if target language is provided
             if (targetLanguage != null && !targetLanguage.isEmpty() && !fetchedNews.isEmpty()) {
                 return translateNewsList(fetchedNews, targetLanguage);
@@ -169,18 +104,141 @@ public class NewsServiceImpl implements NewsService {
         }
     }
 
-    @Override
-    public List<News> getLatestNewsByCategory(String category, String targetLanguage) {
-        return getLatestNewsByCategory(category, 20, targetLanguage); // Default limit of 20
+    /**
+     * Enriches news DTOs sequentially by fetching full content and images from source URLs
+     */
+    private List<News> enrichNewsSequentially(List<NewsDTO> newsDTOs) {
+        log.info("Starting sequential enrichment of {} news articles", newsDTOs.size());
+        List<News> enrichedNews = new ArrayList<>();
+        
+        for (int i = 0; i < newsDTOs.size(); i++) {
+            NewsDTO newsDTO = newsDTOs.get(i);
+            log.debug("Processing article {}/{}: {}", i + 1, newsDTOs.size(), newsDTO.getTitle());
+            
+            try {
+                // Enrich the news DTO with scraped content and images
+                enrichNewsDTO(newsDTO);
+                
+                // Create and save the news
+                News savedNews = createNews(newsDTO);
+                if (savedNews != null) {
+                    enrichedNews.add(savedNews);
+                    log.debug("Successfully enriched and saved article {}/{}", i + 1, newsDTOs.size());
+                }
+                
+                // Add a small delay between requests to be respectful to source servers
+                if (i < newsDTOs.size() - 1) {
+                    Thread.sleep(500); // 500ms delay between requests
+                }
+            } catch (InterruptedException e) {
+                log.warn("Thread interrupted during sequential processing");
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                log.error("Error enriching news item {}: {}", newsDTO.getTitle(), e.getMessage());
+                // Continue with next article even if one fails
+            }
+        }
+        
+        log.info("Completed sequential enrichment. Successfully processed {}/{} articles", 
+                enrichedNews.size(), newsDTOs.size());
+        return enrichedNews;
+    }
+
+    /**
+     * Enriches a single NewsDTO by fetching content and images from source URL
+     */
+    private void enrichNewsDTO(NewsDTO newsDTO) {
+        if (newsDTO.getSourceUrl() == null || newsDTO.getSourceUrl().isEmpty()) {
+            log.debug("No source URL available for article: {}", newsDTO.getTitle());
+            return;
+        }
+
+        try {
+            // Fetch full content if not already present or too short
+            if (newsDTO.getContent() == null || newsDTO.getContent().length() < 200) {
+                log.debug("Fetching full content from: {}", newsDTO.getSourceUrl());
+                String scrapedContent = webScraperService.fetchArticleContent(newsDTO.getSourceUrl());
+                
+                if (scrapedContent != null && !scrapedContent.isEmpty()) {
+                    newsDTO.setContent(scrapedContent);
+                    log.debug("Successfully fetched {} characters of content", scrapedContent.length());
+                } else {
+                    log.debug("Could not fetch content, keeping original");
+                }
+            }
+
+            // Fetch image if not already present
+            if (newsDTO.getImageUrl() == null || newsDTO.getImageUrl().isEmpty()) {
+                log.debug("Fetching image from: {}", newsDTO.getSourceUrl());
+                String scrapedImage = webScraperService.fetchBestImage(newsDTO.getSourceUrl());
+                
+                if (scrapedImage != null && !scrapedImage.isEmpty()) {
+                    newsDTO.setImageUrl(scrapedImage);
+                    log.debug("Successfully fetched image: {}", scrapedImage);
+                } else {
+                    log.debug("Could not fetch image from source");
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error enriching news DTO from {}: {}", newsDTO.getSourceUrl(), e.getMessage());
+            // Continue with original data if enrichment fails
+        }
     }
 
     @Override
-    public List<News> getLatestNewsByCategory(String category, int limit, String targetLanguage) {
-        log.debug("Getting latest {} news items for category: {} in language: {}", limit, category, targetLanguage);
+    public News createNews(NewsDTO newsDTO) {
+        log.debug("Creating news with title: {}", newsDTO.getTitle());
         try {
-            List<News> categoryNews = newsRepository.findByCategoryOrderByPublishedAtDesc(category.toUpperCase())
+            // Check for existing news with same title and source URL
+            if (newsRepository.existsByTitleAndDescription(newsDTO.getTitle(), newsDTO.getDescription())) {
+                log.debug("News article already exists with title: {} and desc: {}",
+                        newsDTO.getTitle(), newsDTO.getDescription());
+                return newsRepository.findByTitleAndDescription(newsDTO.getTitle(), newsDTO.getDescription())
+                        .orElseThrow(() -> new RuntimeException("News article not found after existence check"));
+            }
+
+            News news = new News();
+            news.setTitle(newsDTO.getTitle());
+            news.setDescription(newsDTO.getDescription());
+            news.setContent(newsDTO.getContent());
+            news.setAuthor(newsDTO.getAuthor());
+            news.setSourceUrl(newsDTO.getSourceUrl());
+            news.setImageUrl(newsDTO.getImageUrl());
+            news.setPublishedAt(newsDTO.getPublishedAt() != null ? newsDTO.getPublishedAt() : LocalDateTime.now());
+
+            // Automatically classify category if not provided
+            if (newsDTO.getCategory() == null || newsDTO.getCategory().trim().isEmpty()) {
+                String category = categoryClassificationService.classifyNewsCategory(
+                        newsDTO.getTitle(), newsDTO.getDescription(), newsDTO.getContent());
+                news.setCategory(category);
+                log.debug("Auto-classified news category as: {}", category);
+            } else {
+                news.setCategory(newsDTO.getCategory().toUpperCase());
+            }
+
+            News savedNews = newsRepository.save(news);
+            log.debug("Successfully created news with ID: {} and category: {}", savedNews.getId(), savedNews.getCategory());
+            return savedNews;
+        } catch (Exception e) {
+            log.error("Error creating news: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+
+    @Override
+    public List<News> getLatestNewsByCategory(String category, String targetLanguage) {
+        log.debug("Getting latest {} news items for category: {} in language: {}", category, targetLanguage);
+        try {
+            LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
+            LocalDateTime endOfDay = LocalDateTime.now();
+            log.debug("start: {} end : {}", startOfDay,endOfDay);
+            List<News> dailyNews = newsRepository.findLatestNewsOrderByPublishedAtDesc(startOfDay, endOfDay);
+
+            List<News> categoryNews = dailyNews
                     .stream()
-                    .limit(limit)
+                    .filter(e-> e.getCategory().equalsIgnoreCase(category))
                     .toList();
             
             log.debug("Found {} news items for category: {}", categoryNews.size(), category);
@@ -193,19 +251,6 @@ public class NewsServiceImpl implements NewsService {
             return categoryNews;
         } catch (Exception e) {
             log.error("Error getting latest news by category {}: {}", category, e.getMessage(), e);
-            throw e;
-        }
-    }
-
-    @Override
-    public List<String> getAllCategories() {
-        log.debug("Getting all distinct categories");
-        try {
-            List<String> categories = newsRepository.findAllDistinctCategories();
-            log.debug("Found {} distinct categories: {}", categories.size(), categories);
-            return categories;
-        } catch (Exception e) {
-            log.error("Error getting all categories: {}", e.getMessage(), e);
             throw e;
         }
     }
@@ -306,6 +351,40 @@ public class NewsServiceImpl implements NewsService {
             }
         }
     }
+    @Override
+    public List<String> getAllCategories() {
+        log.debug("Getting all distinct categories");
+        try {
+            List<String> categories = newsRepository.findAllDistinctCategories();
+            log.debug("Found {} distinct categories: {}", categories.size(), categories);
+            return categories;
+        } catch (Exception e) {
+            log.error("Error getting all categories: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
 
+    @Override
+    public void deleteNews(Long id) {
+        log.debug("Attempting to delete news with ID: {}", id);
+        try {
+            newsRepository.deleteById(id);
+            log.debug("Successfully deleted news with ID: {}", id);
+        } catch (Exception e) {
+            log.error("Error deleting news with ID {}: {}", id, e.getMessage(), e);
+            throw e;
+        }
+    }
+    @Override
+    public void deleteAllNews() {
+        log.debug("Attempting to delete all news from database");
+        try {
+            newsRepository.deleteAll();
+            log.debug("Successfully deleted all news from database");
+        } catch (Exception e) {
+            log.error("Error deleting all news: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
 
 } 

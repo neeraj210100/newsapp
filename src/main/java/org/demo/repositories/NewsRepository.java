@@ -12,10 +12,11 @@ import java.util.Optional;
 
 @Repository
 public interface NewsRepository extends JpaRepository<News, Long> {
-    
-    List<News> findByTitleContainingIgnoreCase(String keyword);
-    
-    List<News> findByPublishedAtBetweenOrderByPublishedAtDesc(
+
+
+    @Query("SELECT n FROM News n WHERE " +
+    "n.publishedAt BETWEEN :start AND :end ORDER BY n.publishedAt DESC")
+    List<News> findLatestNewsOrderByPublishedAtDesc(
         LocalDateTime start, 
         LocalDateTime end
     );
@@ -23,17 +24,8 @@ public interface NewsRepository extends JpaRepository<News, Long> {
     @Query("SELECT n FROM News n WHERE " +
            "LOWER(n.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "LOWER(n.description) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "LOWER(n.content) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+           "LOWER(n.content) LIKE LOWER(CONCAT('%', :keyword, '%')) ORDER BY n.publishedAt DESC")
     List<News> searchNews(@Param("keyword") String keyword);
-
-    // Category-based queries
-    List<News> findByCategoryOrderByPublishedAtDesc(String category);
-    
-    List<News> findByCategoryAndPublishedAtBetweenOrderByPublishedAtDesc(
-        String category, 
-        LocalDateTime start, 
-        LocalDateTime end
-    );
     
     @Query("SELECT DISTINCT n.category FROM News n WHERE n.category IS NOT NULL ORDER BY n.category")
     List<String> findAllDistinctCategories();

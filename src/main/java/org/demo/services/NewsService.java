@@ -14,7 +14,5 @@ public interface NewsService {
     List<News> fetchNewsFromExternalApi(String query, String targetLanguage);
     List<News> getLatestNewsByCategory(String category, String targetLanguage);
 
-    List<News> getLatestNewsByCategory(String category, int limit, String targetLanguage);
-
     List<String> getAllCategories();
 }

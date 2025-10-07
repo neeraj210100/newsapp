@@ -27,27 +27,6 @@ public class NewsController {
 
     private final NewsService newsService;
 
-    @Operation(summary = "Delete a news article", description = "Delete a specific news article by its ID")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "204", description = "News article deleted successfully"),
-            @ApiResponse(responseCode = "404", description = "News article not found"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
-    @DeleteMapping("/deleteNews/{id}")
-    public ResponseEntity<Void> deleteNews(
-            @Parameter(description = "ID of the news article to delete", required = true)
-            @PathVariable Long id) {
-        log.debug("Received request to delete news with ID: {}", id);
-        try {
-            newsService.deleteNews(id);
-            log.debug("Successfully deleted news with ID: {}", id);
-            return ResponseEntity.noContent().build();
-        } catch (Exception e) {
-            log.error("Error deleting news with ID {}: {}", id, e.getMessage(), e);
-            throw e;
-        }
-    }
-
     @Operation(summary = "Search news articles", description = "Search for news articles by keyword")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Search results retrieved successfully",
@@ -70,27 +49,6 @@ public class NewsController {
         }
     }
 
-    @Operation(summary = "Get daily news bulletin", description = "Retrieve the daily news bulletin in the specified language")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Daily news bulletin retrieved successfully",
-                    content = @Content(schema = @Schema(implementation = News.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid language code"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
-    @GetMapping("/dailyBulletin")
-    public ResponseEntity<List<News>> getDailyNews(
-            @Parameter(description = "Target language for translation (default: en)", example = "en")
-            @RequestParam(defaultValue = "en") String targetLanguage) {
-        log.debug("Received request to get daily news bulletin in language: {}", targetLanguage);
-        try {
-            List<News> dailyNews = newsService.getDailyNews(targetLanguage);
-            log.debug("Retrieved {} news items for daily bulletin", dailyNews.size());
-            return ResponseEntity.ok(dailyNews);
-        } catch (Exception e) {
-            log.error("Error getting daily news bulletin: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
 
     @Operation(summary = "Fetch external news", description = "Fetch and save news articles from external API based on query")
     @ApiResponses(value = {
@@ -117,24 +75,28 @@ public class NewsController {
         }
     }
 
-    @Operation(summary = "Delete all news articles", description = "Delete all news articles from the database")
+
+    @Operation(summary = "Get daily news bulletin", description = "Retrieve the daily news bulletin in the specified language")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "204", description = "All news articles deleted successfully"),
+            @ApiResponse(responseCode = "200", description = "Daily news bulletin retrieved successfully",
+                    content = @Content(schema = @Schema(implementation = News.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid language code"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    @DeleteMapping("/deleteAll")
-    public ResponseEntity<Void> deleteAllNews() {
-        log.debug("Received request to delete all news");
+    @GetMapping("/dailyBulletin")
+    public ResponseEntity<List<News>> getDailyNews(
+            @Parameter(description = "Target language for translation (default: en)", example = "en")
+            @RequestParam(defaultValue = "en") String targetLanguage) {
+        log.debug("Received request to get daily news bulletin in language: {}", targetLanguage);
         try {
-            newsService.deleteAllNews();
-            log.debug("Successfully deleted all news");
-            return ResponseEntity.noContent().build();
+            List<News> dailyNews = newsService.getDailyNews(targetLanguage);
+            log.debug("Retrieved {} news items for daily bulletin", dailyNews.size());
+            return ResponseEntity.ok(dailyNews);
         } catch (Exception e) {
-            log.error("Error deleting all news: {}", e.getMessage(), e);
+            log.error("Error getting daily news bulletin: {}", e.getMessage(), e);
             throw e;
         }
     }
-
     // Category-related endpoints
     @Operation(summary = "Get news by category", description = "Retrieve the latest news articles for a specific category")
     @ApiResponses(value = {
@@ -155,7 +117,7 @@ public class NewsController {
         log.debug("Received request to get latest {} news items for category: {} in language: {}", 
                  limit, category, targetLanguage);
         try {
-            List<News> categoryNews = newsService.getLatestNewsByCategory(category, limit, targetLanguage);
+            List<News> categoryNews = newsService.getLatestNewsByCategory(category, targetLanguage);
             log.debug("Retrieved {} news items for category: {}", categoryNews.size(), category);
             return ResponseEntity.ok(categoryNews);
         } catch (Exception e) {
@@ -182,6 +144,42 @@ public class NewsController {
             throw e;
         }
     }
-
+    @Operation(summary = "Delete all news articles", description = "Delete all news articles from the database")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "All news articles deleted successfully"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @DeleteMapping("/deleteAll")
+    public ResponseEntity<Void> deleteAllNews() {
+        log.debug("Received request to delete all news");
+        try {
+            newsService.deleteAllNews();
+            log.debug("Successfully deleted all news");
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            log.error("Error deleting all news: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+    @Operation(summary = "Delete a news article", description = "Delete a specific news article by its ID")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "News article deleted successfully"),
+            @ApiResponse(responseCode = "404", description = "News article not found"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @DeleteMapping("/deleteNews/{id}")
+    public ResponseEntity<Void> deleteNews(
+            @Parameter(description = "ID of the news article to delete", required = true)
+            @PathVariable Long id) {
+        log.debug("Received request to delete news with ID: {}", id);
+        try {
+            newsService.deleteNews(id);
+            log.debug("Successfully deleted news with ID: {}", id);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            log.error("Error deleting news with ID {}: {}", id, e.getMessage(), e);
+            throw e;
+        }
+    }
 
 } 

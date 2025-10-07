@@ -35,11 +35,11 @@ public class News {
     @Schema(description = "Author of the news article", example = "John Doe")
     private String author;
 
-    @Column(name = "source_url", length = 500)
+    @Column(name = "source_url", columnDefinition = "TEXT")
     @Schema(description = "Original source URL of the news article", example = "https://example.com/news/article")
     private String sourceUrl;
 
-    @Column(name = "image_url", length = 500)
+    @Column(name = "image_url", columnDefinition = "TEXT")
     @Schema(description = "URL of the article's featured image", example = "https://example.com/images/article.jpg")
     private String imageUrl;
 
