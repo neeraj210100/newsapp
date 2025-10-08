@@ -2,16 +2,18 @@ package org.demo.services.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.demo.models.dto.NewsDTO;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.scheduler.Schedulers;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import javax.net.ssl.*;
+import java.security.cert.X509Certificate;
+
 
 @Slf4j
 @Service
@@ -29,193 +31,268 @@ public class WebScraperService {
     @Value("${web.scraper.enabled:true}")
     private boolean enabled;
 
+    @Value("${web.scraper.ignore-ssl:true}")
+    private boolean ignoreSsl;
+
+    static {
+        // Configure SSL to ignore certificate validation issues
+        try {
+            TrustManager[] trustAllCerts = new TrustManager[]{
+                new X509TrustManager() {
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return null;
+                    }
+                    public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                    }
+                    public void checkServerTrusted(X509Certificate[] certs, String authType) {
+                    }
+                }
+            };
+
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+            // Create all-trusting host name verifier
+            HostnameVerifier allHostsValid = (hostname, session) -> true;
+            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
+        } catch (Exception e) {
+            log.warn("Failed to configure SSL trust settings: {}", e.getMessage());
+        }
+    }
+
     /**
      * Fetches full article content from a given URL
      */
-    public String fetchArticleContent(String url) {
+    public NewsDTO fetchArticleContent(NewsDTO newsDTO) {
+        String url = newsDTO.getSourceUrl();
         if (!enabled || url == null || url.isEmpty()) {
             log.debug("Web scraping disabled or invalid URL");
-            return null;
+            return newsDTO;
         }
 
-        try {
-            log.debug("Fetching content from URL: {}", url);
-            
-            String htmlContent = String.valueOf(webClientBuilder.build()
-                    .get()
-                    .uri(url)
-                    .header("User-Agent", userAgent)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .timeout(Duration.ofMillis(timeout)));
+        int maxRetries = 2;
+        int retryCount = 0;
+        
+        while (retryCount <= maxRetries) {
+            try {
+                log.debug("Fetching content from URL: {} (attempt {})", url, retryCount + 1);
+                Document doc = Jsoup
+                        .connect(url)
+                        .userAgent(userAgent)
+                        .header("Accept-Language", "*")
+                        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                        .header("Accept-Encoding", "gzip, deflate")
+                        .header("Connection", "keep-alive")
+                        .header("Upgrade-Insecure-Requests", "1")
+                        .timeout(timeout)
+                        .followRedirects(true)
+                        .maxBodySize(0) // No limit on body size
+                        .get();
 
-            if (htmlContent != null && !htmlContent.isEmpty()) {
-                String content = extractContentFromHtml(htmlContent);
-                
-                if (content != null && !content.isEmpty()) {
-                    log.debug("Successfully extracted {} characters of content from {}", content.length(), url);
-                    return content;
+                // Extract article content
+                String content = extractArticleContent(doc);
+                if (content != null && !content.trim().isEmpty()) {
+                    newsDTO.setContent(content);
+                    log.debug("Successfully extracted content for article: {}", newsDTO.getTitle());
+                }
+
+                // Extract article image
+                String imageUrl = extractArticleImage(doc, url);
+                if (imageUrl != null && !imageUrl.isEmpty()) {
+                    newsDTO.setImageUrl(imageUrl);
+                    log.debug("Successfully extracted image URL for article: {}", newsDTO.getTitle());
+                }
+
+                // If we get here, the request was successful
+                break;
+
+            } catch (Exception e) {
+                retryCount++;
+                if (retryCount > maxRetries) {
+                    log.error("Error fetching content from URL {} after {} attempts: {}", url, maxRetries + 1, e.getMessage());
                 } else {
-                    log.warn("No content found at URL: {}", url);
-                    return null;
-                }
-            }
-            return null;
-        } catch (Exception e) {
-            log.error("Error fetching content from URL {}: {}", url, e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Extracts the main article content from HTML using regex patterns
-     */
-    private String extractContentFromHtml(String html) {
-        if (html == null || html.isEmpty()) {
-            return null;
-        }
-
-        StringBuilder content = new StringBuilder();
-        
-        // Extract text from <p> tags
-        Pattern pPattern = Pattern.compile("<p[^>]*>(.*?)</p>", Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
-        Matcher pMatcher = pPattern.matcher(html);
-        
-        while (pMatcher.find()) {
-            String paragraph = pMatcher.group(1);
-            // Remove HTML tags from the paragraph
-            String cleanText = paragraph.replaceAll("<[^>]+>", "").trim();
-            // Decode common HTML entities
-            cleanText = decodeHtmlEntities(cleanText);
-            
-            if (cleanText.length() > 50) { // Filter out short paragraphs
-                content.append(cleanText).append("\n\n");
-            }
-        }
-
-        String result = content.toString().trim();
-        return result.length() > 100 ? result : null;
-    }
-
-    /**
-     * Decodes common HTML entities
-     */
-    private String decodeHtmlEntities(String text) {
-        return text
-                .replaceAll("&nbsp;", " ")
-                .replaceAll("&amp;", "&")
-                .replaceAll("&lt;", "<")
-                .replaceAll("&gt;", ">")
-                .replaceAll("&quot;", "\"")
-                .replaceAll("&#39;", "'")
-                .replaceAll("&apos;", "'")
-                .replaceAll("&mdash;", "—")
-                .replaceAll("&ndash;", "–")
-                .replaceAll("&rsquo;", "'")
-                .replaceAll("&lsquo;", "'")
-                .replaceAll("&rdquo;", "\"")
-                .replaceAll("&ldquo;", "\"");
-    }
-
-    /**
-     * Extracts image URLs from a given article URL
-     */
-    public List<String> fetchArticleImages(String url) {
-        if (!enabled || url == null || url.isEmpty()) {
-            log.debug("Web scraping disabled or invalid URL");
-            return new ArrayList<>();
-        }
-
-        try {
-            log.debug("Fetching images from URL: {}", url);
-            
-            String htmlContent = String.valueOf(webClientBuilder.build()
-                    .get()
-                    .uri(url)
-                    .header("User-Agent", userAgent)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .timeout(Duration.ofMillis(timeout)));
-
-
-            List<String> imageUrls = new ArrayList<>();
-
-            if (htmlContent != null && !htmlContent.isEmpty()) {
-                // Extract Open Graph image (og:image)
-                Pattern ogImagePattern = Pattern.compile("<meta[^>]+property=[\"']og:image[\"'][^>]+content=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
-                Matcher ogMatcher = ogImagePattern.matcher(htmlContent);
-                if (ogMatcher.find()) {
-                    String imgUrl = ogMatcher.group(1);
-                    if (isValidImageUrl(imgUrl)) {
-                        imageUrls.add(imgUrl);
-                        log.debug("Found OG image: {}", imgUrl);
+                    log.warn("Error fetching content from URL {} (attempt {}): {}. Retrying...", url, retryCount, e.getMessage());
+                    try {
+                        Thread.sleep(1000 * retryCount); // Wait before retry
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
                     }
                 }
+            }
+        }
+        
+        return newsDTO;
+    }
 
-                // Extract Twitter image
-                if (imageUrls.isEmpty()) {
-                    Pattern twitterImagePattern = Pattern.compile("<meta[^>]+name=[\"']twitter:image[\"'][^>]+content=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
-                    Matcher twitterMatcher = twitterImagePattern.matcher(htmlContent);
-                    if (twitterMatcher.find()) {
-                        String imgUrl = twitterMatcher.group(1);
-                        if (isValidImageUrl(imgUrl)) {
-                            imageUrls.add(imgUrl);
-                            log.debug("Found Twitter image: {}", imgUrl);
-                        }
-                    }
-                }
+    /**
+     * Extracts the main article content from the document
+     */
+    private String extractArticleContent(Document doc) {
+        // Common selectors for article content in order of preference
+        String[] contentSelectors = {
+            "article .content",
+            "article .article-content", 
+            "article .post-content",
+            "article .entry-content",
+            "article .article-body",
+            "article .story-body",
+            "article .article-text",
+            "article p",
+            ".content",
+            ".article-content",
+            ".post-content", 
+            ".entry-content",
+            ".article-body",
+            ".story-body",
+            ".article-text"
+        };
 
-                // Extract img src tags
-                if (imageUrls.isEmpty()) {
-                    Pattern imgPattern = Pattern.compile("<img[^>]+src=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
-                    Matcher imgMatcher = imgPattern.matcher(htmlContent);
+        for (String selector : contentSelectors) {
+            Elements elements = doc.select(selector);
+            if (!elements.isEmpty()) {
+                StringBuilder content = new StringBuilder();
+                for (Element element : elements) {
+                    // Remove script and style elements
+                    element.select("script, style, .advertisement, .ads, .social-share").remove();
                     
-                    int count = 0;
-                    while (imgMatcher.find() && count < 5) {
-                        String imgUrl = imgMatcher.group(1);
-                        if (isValidImageUrl(imgUrl)) {
-                            imageUrls.add(imgUrl);
-                            log.debug("Found image: {}", imgUrl);
-                            count++;
-                        }
+                    String text = element.text().trim();
+                    if (!text.isEmpty()) {
+                        content.append(text).append("\n\n");
                     }
                 }
+                
+                String extractedContent = content.toString().trim();
+                if (extractedContent.length() > 100) { // Ensure we have substantial content
+                    return extractedContent;
+                }
             }
-
-            log.debug("Found {} images from {}", imageUrls.size(), url);
-            return imageUrls;
-        } catch (Exception e) {
-            log.error("Error fetching images from URL {}: {}", url, e.getMessage());
-            return new ArrayList<>();
         }
+
+        // Fallback: extract all paragraph text from the document
+        Elements paragraphs = doc.select("p");
+        if (!paragraphs.isEmpty()) {
+            StringBuilder content = new StringBuilder();
+            for (Element p : paragraphs) {
+                String text = p.text().trim();
+                if (text.length() > 20) { // Only include substantial paragraphs
+                    content.append(text).append("\n\n");
+                }
+            }
+            return content.toString().trim();
+        }
+
+        return null;
     }
 
     /**
-     * Validates if a URL is a valid image URL
+     * Extracts the main article image from the document
+     */
+    private String extractArticleImage(Document doc, String baseUrl) {
+        // Common selectors for article images in order of preference
+        String[] imageSelectors = {
+            "article img",
+            ".article-image img",
+            ".post-image img", 
+            ".entry-image img",
+            ".featured-image img",
+            ".hero-image img",
+            ".main-image img",
+            ".article-header img",
+            ".post-header img"
+        };
+
+        for (String selector : imageSelectors) {
+            Elements images = doc.select(selector);
+            for (Element img : images) {
+                String src = img.attr("src");
+                if (src != null && !src.isEmpty()) {
+                    // Convert relative URLs to absolute URLs
+                    String absoluteUrl = convertToAbsoluteUrl(src, baseUrl);
+                    if (isValidImageUrl(absoluteUrl)) {
+                        return absoluteUrl;
+                    }
+                }
+            }
+        }
+
+        // Fallback: look for any image with reasonable dimensions
+        Elements allImages = doc.select("img");
+        for (Element img : allImages) {
+            String src = img.attr("src");
+            String width = img.attr("width");
+            String height = img.attr("height");
+            
+            if (src != null && !src.isEmpty()) {
+                // Prefer images with reasonable dimensions
+                if (isValidImageDimensions(width, height)) {
+                    String absoluteUrl = convertToAbsoluteUrl(src, baseUrl);
+                    if (isValidImageUrl(absoluteUrl)) {
+                        return absoluteUrl;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Converts relative URLs to absolute URLs
+     */
+    private String convertToAbsoluteUrl(String url, String baseUrl) {
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            return url;
+        }
+        
+        if (url.startsWith("//")) {
+            return "https:" + url;
+        }
+        
+        if (url.startsWith("/")) {
+            try {
+                java.net.URL base = new java.net.URL(baseUrl);
+                return base.getProtocol() + "://" + base.getHost() + url;
+            } catch (Exception e) {
+                log.warn("Error converting relative URL to absolute: {}", e.getMessage());
+            }
+        }
+        
+        return url;
+    }
+
+    /**
+     * Validates if the URL points to a valid image
      */
     private boolean isValidImageUrl(String url) {
         if (url == null || url.isEmpty()) {
             return false;
         }
         
+        // Check for common image extensions
         String lowerUrl = url.toLowerCase();
-        return (lowerUrl.endsWith(".jpg") || 
-                lowerUrl.endsWith(".jpeg") || 
-                lowerUrl.endsWith(".png") || 
-                lowerUrl.endsWith(".gif") || 
-                lowerUrl.endsWith(".webp") ||
-                lowerUrl.contains(".jpg?") ||
-                lowerUrl.contains(".jpeg?") ||
-                lowerUrl.contains(".png?") ||
-                lowerUrl.contains(".webp?")) &&
-               (url.startsWith("http://") || url.startsWith("https://"));
+        return lowerUrl.contains(".jpg") || lowerUrl.contains(".jpeg") || 
+               lowerUrl.contains(".png") || lowerUrl.contains(".gif") || 
+               lowerUrl.contains(".webp") || lowerUrl.contains(".svg");
     }
 
     /**
-     * Fetches the best available image from a URL
+     * Validates if image dimensions are reasonable for article images
      */
-    public String fetchBestImage(String url) {
-        List<String> images = fetchArticleImages(url);
-        return images.isEmpty() ? null : images.get(0);
+    private boolean isValidImageDimensions(String width, String height) {
+        try {
+            if (width != null && !width.isEmpty() && height != null && !height.isEmpty()) {
+                int w = Integer.parseInt(width);
+                int h = Integer.parseInt(height);
+                // Prefer images that are at least 200x200 pixels
+                return w >= 200 && h >= 200;
+            }
+        } catch (NumberFormatException e) {
+            // If dimensions can't be parsed, consider it valid
+        }
+        return true; // Consider valid if dimensions can't be determined
     }
+
+
 }

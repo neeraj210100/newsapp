@@ -117,7 +117,7 @@ public class NewsServiceImpl implements NewsService {
             
             try {
                 // Enrich the news DTO with scraped content and images
-                enrichNewsDTO(newsDTO);
+                newsDTO=enrichNewsDTO(newsDTO);
                 
                 // Create and save the news
                 News savedNews = createNews(newsDTO);
@@ -148,42 +148,13 @@ public class NewsServiceImpl implements NewsService {
     /**
      * Enriches a single NewsDTO by fetching content and images from source URL
      */
-    private void enrichNewsDTO(NewsDTO newsDTO) {
+    private NewsDTO enrichNewsDTO(NewsDTO newsDTO) {
         if (newsDTO.getSourceUrl() == null || newsDTO.getSourceUrl().isEmpty()) {
             log.debug("No source URL available for article: {}", newsDTO.getTitle());
-            return;
+            return newsDTO;
         }
+         return webScraperService.fetchArticleContent(newsDTO);
 
-        try {
-            // Fetch full content if not already present or too short
-            if (newsDTO.getContent() == null || newsDTO.getContent().length() < 200) {
-                log.debug("Fetching full content from: {}", newsDTO.getSourceUrl());
-                String scrapedContent = webScraperService.fetchArticleContent(newsDTO.getSourceUrl());
-                
-                if (scrapedContent != null && !scrapedContent.isEmpty()) {
-                    newsDTO.setContent(scrapedContent);
-                    log.debug("Successfully fetched {} characters of content", scrapedContent.length());
-                } else {
-                    log.debug("Could not fetch content, keeping original");
-                }
-            }
-
-            // Fetch image if not already present
-            if (newsDTO.getImageUrl() == null || newsDTO.getImageUrl().isEmpty()) {
-                log.debug("Fetching image from: {}", newsDTO.getSourceUrl());
-                String scrapedImage = webScraperService.fetchBestImage(newsDTO.getSourceUrl());
-                
-                if (scrapedImage != null && !scrapedImage.isEmpty()) {
-                    newsDTO.setImageUrl(scrapedImage);
-                    log.debug("Successfully fetched image: {}", scrapedImage);
-                } else {
-                    log.debug("Could not fetch image from source");
-                }
-            }
-        } catch (Exception e) {
-            log.error("Error enriching news DTO from {}: {}", newsDTO.getSourceUrl(), e.getMessage());
-            // Continue with original data if enrichment fails
-        }
     }
 
     @Override
