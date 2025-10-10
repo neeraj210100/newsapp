@@ -1,53 +1,74 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { Box } from '@mui/material';
+import { ThemeProvider } from './contexts/ThemeContext';
 import Navbar from './components/Navbar';
 import NewsList from './components/NewsList';
 import SearchNews from './components/SearchNews';
-import ExternalNews from './components/ExternalNews';
-import Categories from './components/Categories';
-import { Container } from '@mui/material';
-
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-    background: {
-      default: '#f5f5f5',
-    },
-  },
-  typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-    h1: {
-      fontSize: '2.5rem',
-      fontWeight: 500,
-    },
-    h2: {
-      fontSize: '2rem',
-      fontWeight: 500,
-    },
-  },
-});
+import { newsApi } from './services/api';
 
 function App() {
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await newsApi.getAllCategories();
+      setCategories(response.data);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
+  };
+
+  const handleLanguageChange = (language) => {
+    setSelectedLanguage(language);
+  };
+
+  const handleCategoryChange = (category) => {
+    setSelectedCategory(category);
+  };
+
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider>
       <CssBaseline />
       <Router>
-        <Navbar />
-        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-          <Routes>
-            <Route path="/" element={<NewsList />} />
-            <Route path="/search" element={<SearchNews />} />
-            <Route path="/external" element={<ExternalNews />} />
-            <Route path="/categories" element={<Categories />} />
-          </Routes>
-        </Container>
+        <Box sx={{ 
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <Navbar 
+            selectedLanguage={selectedLanguage}
+            onLanguageChange={handleLanguageChange}
+            selectedCategory={selectedCategory}
+            onCategoryChange={handleCategoryChange}
+            categories={categories}
+          />
+          <Box sx={{ flexGrow: 1 }}>
+            <Routes>
+              <Route 
+                path="/" 
+                element={
+                  <NewsList 
+                    selectedCategory={selectedCategory}
+                    setSelectedCategory={setSelectedCategory}
+                    selectedLanguage={selectedLanguage}
+                    setSelectedLanguage={setSelectedLanguage}
+                    categories={categories}
+                    setCategories={setCategories}
+                  />
+                } 
+              />
+              <Route path="/search" element={<SearchNews />} />
+            </Routes>
+          </Box>
+        </Box>
       </Router>
     </ThemeProvider>
   );

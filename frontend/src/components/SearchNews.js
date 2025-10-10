@@ -1,28 +1,24 @@
 import React, { useState } from 'react';
 import {
-  Grid,
-  Card,
-  CardContent,
-  CardMedia,
   Typography,
-  CardActions,
-  Button,
   TextField,
   Box,
   Alert,
   CircularProgress,
-  Chip,
-  IconButton,
+  Button,
+  Paper,
 } from '@mui/material';
-import { Search as SearchIcon, Delete as DeleteIcon } from '@mui/icons-material';
-import moment from 'moment';
+import { Search as SearchIcon } from '@mui/icons-material';
 import { newsApi } from '../services/api';
+import InstagramPost from './InstagramPost';
+import { useTheme } from '../contexts/ThemeContext';
 
 function SearchNews() {
   const [keyword, setKeyword] = useState('');
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const { theme } = useTheme();
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -56,97 +52,126 @@ function SearchNews() {
   };
 
   return (
-    <>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Search News
-      </Typography>
+    <Box sx={{ 
+      minHeight: '100vh',
+      backgroundColor: theme.palette.background.default,
+      py: 2
+    }}>
+      {/* Header */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        mb: 4,
+        px: 2
+      }}>
+        <Typography 
+          variant="h4" 
+          component="h1" 
+          sx={{ 
+            fontWeight: 600,
+            color: theme.palette.text.primary
+          }}
+        >
+          Search News
+        </Typography>
+      </Box>
       
-      <Box component="form" onSubmit={handleSearch} sx={{ mb: 4 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={9}>
-            <TextField
-              fullWidth
-              label="Search news"
-              variant="outlined"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="Enter keywords to search news..."
-            />
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <Button
-              fullWidth
-              variant="contained"
-              type="submit"
-              disabled={loading || !keyword.trim()}
-              startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
-              sx={{ height: '56px' }}
-            >
-              Search
-            </Button>
-          </Grid>
-        </Grid>
+      {/* Search Form */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        mb: 4,
+        px: 2
+      }}>
+        <Paper 
+          component="form" 
+          onSubmit={handleSearch} 
+          sx={{ 
+            p: 2, 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2,
+            maxWidth: 600,
+            width: '100%',
+            backgroundColor: theme.palette.background.paper,
+            border: theme.palette.mode === 'dark' ? '1px solid #333' : '1px solid #e0e0e0',
+          }}
+        >
+          <TextField
+            fullWidth
+            label="Search news"
+            variant="outlined"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="Enter keywords to search news..."
+            size="small"
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                backgroundColor: theme.palette.background.default,
+              }
+            }}
+          />
+          <Button
+            variant="contained"
+            type="submit"
+            disabled={loading || !keyword.trim()}
+            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
+            sx={{ 
+              minWidth: 120,
+              height: '40px'
+            }}
+          >
+            Search
+          </Button>
+        </Paper>
       </Box>
 
+      {/* Error Alert */}
       {error && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <Alert severity="info" sx={{ maxWidth: 500 }}>
+            {error}
+          </Alert>
+        </Box>
       )}
 
-      <Grid container spacing={3}>
+      {/* Instagram-style Feed */}
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center', 
+        gap: 3,
+        pb: 10
+      }}>
         {news.map((item) => (
-          <Grid item xs={12} md={6} key={item.id}>
-            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              {item.imageUrl && (
-                <CardMedia
-                  component="img"
-                  height="200"
-                  image={item.imageUrl}
-                  alt={item.title}
-                  sx={{ objectFit: 'cover' }}
-                />
-              )}
-              <CardContent sx={{ flexGrow: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                  <Typography gutterBottom variant="h5" component="h2" sx={{ flexGrow: 1 }}>
-                    {item.title}
-                  </Typography>
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={() => handleDeleteNews(item.id)}
-                    title="Delete this news"
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-                <Typography variant="body2" color="text.secondary" paragraph>
-                  {item.description}
-                </Typography>
-                {item.category && (
-                  <Chip
-                    label={item.category}
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                    sx={{ mb: 1 }}
-                  />
-                )}
-                <Typography variant="caption" color="text.secondary" display="block">
-                  By {item.author || 'Unknown'} • {moment(item.publishedAt).format('MMMM D, YYYY')}
-                </Typography>
-              </CardContent>
-              <CardActions>
-                <Button size="small" color="primary" href={item.sourceUrl} target="_blank">
-                  Read More
-                </Button>
-              </CardActions>
-            </Card>
-          </Grid>
+          <InstagramPost
+            key={item.id}
+            newsItem={item}
+            onDelete={handleDeleteNews}
+            theme={theme}
+          />
         ))}
-      </Grid>
-    </>
+      </Box>
+
+      {/* Empty State */}
+      {news.length === 0 && !loading && !error && keyword && (
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          alignItems: 'center', 
+          justifyContent: 'center',
+          py: 8,
+          textAlign: 'center'
+        }}>
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            No news found for "{keyword}"
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Try different keywords or check back later
+          </Typography>
+        </Box>
+      )}
+    </Box>
   );
 }
 

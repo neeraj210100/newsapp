@@ -1,35 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Grid,
-  Card,
-  CardContent,
-  CardMedia,
+  Box,
   Typography,
-  CardActions,
-  Button,
   Skeleton,
   Alert,
-  Box,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Chip,
   IconButton,
+  Fab,
+  CircularProgress,
 } from '@mui/material';
-import { Delete as DeleteIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { 
+  Refresh as RefreshIcon, 
+  Delete as DeleteIcon,
+  Add as AddIcon 
+} from '@mui/icons-material';
 import { useSearchParams } from 'react-router-dom';
-import moment from 'moment';
 import { newsApi } from '../services/api';
+import InstagramPost from './InstagramPost';
+import { useTheme } from '../contexts/ThemeContext';
 
-function NewsList() {
+function NewsList({ 
+  selectedCategory, 
+  setSelectedCategory, 
+  selectedLanguage, 
+  setSelectedLanguage,
+  categories,
+  setCategories 
+}) {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [searchParams, setSearchParams] = useSearchParams();
+  const { theme } = useTheme();
 
   useEffect(() => {
     fetchCategories();
@@ -123,152 +124,142 @@ function NewsList() {
 
   if (loading) {
     return (
-      <Grid container spacing={3}>
-        {[1, 2, 3, 4].map((item) => (
-          <Grid item xs={12} md={6} key={item}>
-            <Card>
-              <Skeleton variant="rectangular" height={140} />
-              <CardContent>
-                <Skeleton variant="text" height={40} />
-                <Skeleton variant="text" height={20} />
-                <Skeleton variant="text" height={20} />
-              </CardContent>
-            </Card>
-          </Grid>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center', 
+        gap: 3,
+        py: 4 
+      }}>
+        {[1, 2, 3].map((item) => (
+          <Box key={item} sx={{ width: '100%', maxWidth: 500 }}>
+            <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 2 }} />
+            <Box sx={{ p: 2 }}>
+              <Skeleton variant="text" height={40} />
+              <Skeleton variant="text" height={20} />
+              <Skeleton variant="text" height={20} />
+            </Box>
+          </Box>
         ))}
-      </Grid>
+      </Box>
     );
   }
 
   if (error) {
-    return <Alert severity="error">{error}</Alert>;
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+        <Alert severity="error" sx={{ maxWidth: 500 }}>
+          {error}
+        </Alert>
+      </Box>
+    );
   }
 
   return (
-    <>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1">
-          {selectedCategory ? `${selectedCategory} News` : 'Daily News Bulletin'}
+    <Box sx={{ 
+      minHeight: '100vh',
+      backgroundColor: theme.palette.background.default,
+      py: 2
+    }}>
+      {/* Header */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        mb: 3,
+        px: 2
+      }}>
+        <Typography 
+          variant="h4" 
+          component="h1" 
+          sx={{ 
+            fontWeight: 600,
+            color: theme.palette.text.primary
+          }}
+        >
+          {selectedCategory ? `#${selectedCategory}` : 'News Feed'}
         </Typography>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-          <IconButton onClick={handleRefresh} color="primary" title="Refresh">
-            <RefreshIcon />
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <IconButton 
+            onClick={handleRefresh} 
+            color="primary" 
+            title="Refresh"
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : <RefreshIcon />}
           </IconButton>
-          <Button
-            variant="outlined"
+          <IconButton
             color="error"
             onClick={handleDeleteAll}
-            startIcon={<DeleteIcon />}
-            size="small"
+            title="Delete All"
           >
-            Delete All
-          </Button>
+            <DeleteIcon />
+          </IconButton>
         </Box>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>Language</InputLabel>
-          <Select
-            value={selectedLanguage}
-            label="Language"
-            onChange={(e) => setSelectedLanguage(e.target.value)}
-          >
-            <MenuItem value="en">English</MenuItem>
-            <MenuItem value="es">Spanish</MenuItem>
-            <MenuItem value="fr">French</MenuItem>
-            <MenuItem value="de">German</MenuItem>
-            <MenuItem value="it">Italian</MenuItem>
-            <MenuItem value="pt">Portuguese</MenuItem>
-            <MenuItem value="ru">Russian</MenuItem>
-            <MenuItem value="ja">Japanese</MenuItem>
-            <MenuItem value="ko">Korean</MenuItem>
-            <MenuItem value="zh">Chinese</MenuItem>
-          </Select>
-        </FormControl>
+      {/* Error Alert */}
+      {error && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <Alert severity="error" sx={{ maxWidth: 500 }}>
+            {error}
+          </Alert>
+        </Box>
+      )}
 
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>Category</InputLabel>
-          <Select
-            value={selectedCategory}
-            label="Category"
-            onChange={(e) => setSelectedCategory(e.target.value)}
-          >
-            <MenuItem value="">All Categories</MenuItem>
-            {categories.map((category) => (
-              <MenuItem key={category} value={category}>
-                {category}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+      {/* Instagram-style Feed */}
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center', 
+        gap: 3,
+        pb: 10
+      }}>
+        {news.map((item) => (
+          <InstagramPost
+            key={item.id}
+            newsItem={item}
+            onDelete={handleDeleteNews}
+            theme={theme}
+          />
+        ))}
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      <Grid container spacing={3}>
-        {news.map((item) => (
-          <Grid item xs={12} md={6} key={item.id}>
-            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              {item.imageUrl && (
-                <CardMedia
-                  component="img"
-                  height="200"
-                  image={item.imageUrl}
-                  alt={item.title}
-                  sx={{ objectFit: 'cover' }}
-                />
-              )}
-              <CardContent sx={{ flexGrow: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                  <Typography gutterBottom variant="h5" component="h2" sx={{ flexGrow: 1 }}>
-                    {item.title}
-                  </Typography>
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={() => handleDeleteNews(item.id)}
-                    title="Delete this news"
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-                <Typography variant="body2" color="text.secondary" paragraph>
-                  {item.description}
-                </Typography>
-                {item.category && (
-                  <Chip
-                    label={item.category}
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                    sx={{ mb: 1 }}
-                  />
-                )}
-                <Typography variant="caption" color="text.secondary" display="block">
-                  By {item.author || 'Unknown'} • {moment(item.publishedAt).format('MMMM D, YYYY')}
-                </Typography>
-              </CardContent>
-              <CardActions>
-                <Button size="small" color="primary" href={item.sourceUrl} target="_blank">
-                  Read More
-                </Button>
-              </CardActions>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
+      {/* Empty State */}
       {news.length === 0 && !loading && !error && (
-        <Alert severity="info">
-          No news articles found. Try fetching some external news or check back later.
-        </Alert>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          alignItems: 'center', 
+          justifyContent: 'center',
+          py: 8,
+          textAlign: 'center'
+        }}>
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            No news articles found
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Try fetching some external news or check back later
+          </Typography>
+        </Box>
       )}
-    </>
+
+      {/* Floating Action Button for adding news */}
+      <Fab
+        color="primary"
+        aria-label="add news"
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          zIndex: 1000,
+        }}
+        onClick={handleRefresh}
+        disabled={loading}
+      >
+        <AddIcon />
+      </Fab>
+    </Box>
   );
 }
 
