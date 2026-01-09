@@ -1,0 +1,11 @@
+runtime: java
+env: flex
+runtime_config:
+operating_system: "ubuntu24"
+runtime_version: "25"
+handlers:
+  - url: /.*
+script: this field is required, but ignored
+
+manual_scaling:
+instances: 1
