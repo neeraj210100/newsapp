@@ -28,33 +28,6 @@
    export CLOUD_SQL_PASSWORD=your-password
    ```
 
-### Option 2: AWS RDS
-
-1. Create an AWS RDS instance:
-   - Go to [AWS Console](https://console.aws.amazon.com)
-   - Navigate to RDS
-   - Click "Create database"
-   - Choose MySQL
-   - Configure settings:
-     - DB instance identifier: `news-db`
-     - Master username: (choose username)
-     - Master password: (set strong password)
-     - Instance class: db.t3.micro (free tier)
-     - Storage: 20GB
-     - Enable public access: Yes (for development)
-
-2. Configure database:
-   - Create database: `news_db`
-   - Configure security group to allow your IP
-
-3. Set up environment variables:
-   ```bash
-   export CLOUD_SQL_HOST=your-rds-endpoint
-   export CLOUD_SQL_DATABASE=news_db
-   export CLOUD_SQL_USER=your-username
-   export CLOUD_SQL_PASSWORD=your-password
-   ```
-
 ### Security Best Practices
 
 1. Never commit sensitive information to version control
@@ -110,3 +83,6 @@ To migrate your local data to cloud:
    - Optimize queries
    - Clean up old data
    - Check backup integrity 
+
+#Swagger
+http://localhost:8080/swagger-ui/index.html
